@@ -1,0 +1,44 @@
+name: Android CI/CD - Build Release AAB
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    name: Build & Sign AAB
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Set up Gradle
+        uses: gradle/gradle-build-action@v2
+
+      - name: Decrypt keystore
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > app/my-release-key.jks
+
+      - name: Create keystore.properties
+        run: |
+          echo "storeFile=my-release-key.jks" > app/keystore.properties
+          echo "storePassword=${{ secrets.KEYSTORE_PASSWORD }}" >> app/keystore.properties
+          echo "keyAlias=${{ secrets.KEY_ALIAS }}" >> app/keystore.properties
+          echo "keyPassword=${{ secrets.KEY_PASSWORD }}" >> app/keystore.properties
+
+      - name: Build signed AAB
+        run: ./gradlew bundleRelease
+
+      - name: Upload AAB to GitHub Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          files: app/build/outputs/bundle/release/app-release.aab
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
